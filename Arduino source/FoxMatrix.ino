@@ -10,8 +10,10 @@
 
 #include <pgmspace.h>
 #include <SPI.h>
+
 #include "bitmap.h" //Image data from kukkaconvert.exe by wuffe goes here, put in PROGMEM to save ram
 #include "hardware.h" //Hardware definitions
+#include "surface.h"
 
 //ESP8266 stuff
 #include <ESP8266WiFi.h>
@@ -28,7 +30,7 @@
 
 byte pwm = 50; //sets initial brightness
 const unsigned int rowOnTime = 1000; //how long one row is lit, uS
-const unsigned int framerate = 5000; //milliseconds between frames, slows display down to readable speed
+const unsigned int framerate = 500; //milliseconds between frames, slows display down to readable speed
 unsigned long previousMillis = 0;
 int frame = 0;
 
@@ -51,18 +53,20 @@ void setup() { //Set pins to outputs and inits other stuff
   pinMode(14, FUNCTION_2);
   pinMode(15, FUNCTION_2);
 
-  pinMode(latchPin, OUTPUT);
-  pinMode(enablePin, OUTPUT);
-  digitalWrite(enablePin, HIGH);
+  pinMode(LATCHPIN, OUTPUT);
+  pinMode(ENABLEPIN, OUTPUT);
+  digitalWrite(ENABLEPIN, HIGH);
 
   for (int i = 0; i < 4; i++) {
     pinMode(rowAdrsPin[i], OUTPUT);
   }
 
-  analogWrite(pwmPin, pwm); //Set initial brightness
+  analogWrite(PWMPIN, pwm); //Set initial brightness
   SPI.begin();
   Serial.setDebugOutput(false); //Stop all serial communication as serial pins are used for display
   Serial.end();
+
+  Surface<16, 16> pinta({1});
 }
 
 void loop() { //loops constantly
@@ -75,15 +79,15 @@ void refreshDisplay() { //Updates whole display
   unsigned long currentMillis = millis();
   if (currentMillis - previousMillis >= framerate) { //crude timer for frame rate.
     previousMillis = currentMillis;
-    if (frame < (imageWidth / ledColumns ))
+    if (frame < (imageWidth / LEDCOLUMNS))
       frame++;
     else
       frame = 0;
   }
 
-  for (byte row = firstRowAdrs; row <= lastRowAdrs; row++) {  //Displaythingy happens here, select row, put column data in, change row, start again...
+  for (byte row = FIRSTROWADRS; row <= LASTROWADRS; row++) {  //Displaythingy happens here, select row, put column data in, change row, start again...
     selectRow(row);
-    sendColumn(frame * ledColumns, row);
+     sendColumn(frame * LEDCOLUMNS, row);
   }
 
 #else //shows image that is scrolling from right to left
@@ -96,7 +100,7 @@ void refreshDisplay() { //Updates whole display
       frame = 0;
   }
 
-  for (byte row = firstRowArds; row <= lastRowAdrs; row++) { //Displaythingy happens here, select row, put column data in, change row, start again...
+  for (byte row = firstRowArds; row <= LASTROWADRS; row++) { //Displaythingy happens here, select row, put column data in, change row, start again...
     selectRow(row);
     sendColumn(frame, row);
   }
@@ -104,18 +108,18 @@ void refreshDisplay() { //Updates whole display
 }
 
 void sendColumn(int col, byte row) { //Toggles control lines and outputs display data.
-  digitalWrite(latchPin, LOW);
+  digitalWrite(LATCHPIN, LOW);
   shiftOut32(getRowWord(col + 96, row, imageWidth, imageData)); //last panel
   shiftOut32(getRowWord(col + 64, row, imageWidth, imageData)); //third panel
   shiftOut32(getRowWord(col + 32, row, imageWidth, imageData)); //second panel
   shiftOut32(getRowWord(col , row, imageWidth, imageData));     //first panel
-  digitalWrite(latchPin, HIGH);
+  digitalWrite(LATCHPIN, HIGH);
 
-  digitalWrite(enablePin, LOW);
+  digitalWrite(ENABLEPIN, LOW);
   /*Delay for leds being enabled, affects how bright display is.
     ESP8266 does WiFi and TCP/IP task during delays*/
   delayMicroseconds(rowOnTime);
-  digitalWrite(enablePin, HIGH);
+  digitalWrite(ENABLEPIN, HIGH);
 }
 
 void selectRow(byte RowAdrs) { //Selects which row gets illuminated, 4Bit address
